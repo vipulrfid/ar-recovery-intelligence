@@ -71,28 +71,28 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const totalAR = allInvoices.reduce((sum, inv) => sum + inv.openAmount, 0);
+    const totalAR = allInvoices.reduce((sum: number, inv) => sum + inv.openAmount, 0);
     const totalOverdue = allInvoices
       .filter((inv) => inv.daysOverdue > 0)
-      .reduce((sum, inv) => sum + inv.openAmount, 0);
+      .reduce((sum: number, inv) => sum + inv.openAmount, 0);
 
     const agingBuckets = {
       CURRENT: allInvoices
         .filter((inv) => inv.agingBucket === 'CURRENT')
-        .reduce((sum, inv) => sum + inv.openAmount, 0),
+        .reduce((sum: number, inv) => sum + inv.openAmount, 0),
       DAYS_31_60: allInvoices
         .filter((inv) => inv.agingBucket === 'DAYS_31_60')
-        .reduce((sum, inv) => sum + inv.openAmount, 0),
+        .reduce((sum: number, inv) => sum + inv.openAmount, 0),
       DAYS_61_90: allInvoices
         .filter((inv) => inv.agingBucket === 'DAYS_61_90')
-        .reduce((sum, inv) => sum + inv.openAmount, 0),
+        .reduce((sum: number, inv) => sum + inv.openAmount, 0),
       OVER_90: allInvoices
         .filter((inv) => inv.agingBucket === 'OVER_90')
-        .reduce((sum, inv) => sum + inv.openAmount, 0),
+        .reduce((sum: number, inv) => sum + inv.openAmount, 0),
     };
 
     // Calculate estimated DSO
-    const totalInvoiceAge = allInvoices.reduce((sum, inv) => {
+    const totalInvoiceAge = allInvoices.reduce((sum: number, inv) => {
       const invoiceAge = Math.floor(
         (new Date().getTime() - new Date(inv.invoiceDate).getTime()) / (1000 * 60 * 60 * 24)
       );
