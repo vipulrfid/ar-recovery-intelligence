@@ -1,0 +1,426 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// AUTHENTICATION & MULTI-TENANCY
+// ============================================
+
+model Org {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Settings
+  timezone                  String  @default("America/New_York")
+  defaultPaymentLinkUrl     String?
+  defaultTone               String  @default("polite") // polite, firm, final
+  emailAutoSendEnabled      Boolean @default(false)
+  stopAutomationOnDispute   Boolean @default(true)
+
+  // Relations
+  users             User[]
+  customers         Customer[]
+  invoices          Invoice[]
+  uploads           Upload[]
+  activities        Activity[]
+  emailAccounts     EmailAccount[]
+  emailThreads      EmailThread[]
+  emailMessages     EmailMessage[]
+  emailTemplates    EmailTemplate[]
+  strategies        Strategy[]
+  promiseToPays     PromiseToPay[]
+  invoiceDocuments  InvoiceDocument[]
+
+  @@map("orgs")
+}
+
+enum UserRole {
+  ADMIN
+  MEMBER
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  passwordHash  String?
+  role          UserRole @default(MEMBER)
+  orgId         String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("users")
+}
+
+// ============================================
+// CUSTOMERS & INVOICES
+// ============================================
+
+model Customer {
+  id                     String   @id @default(cuid())
+  orgId                  String
+  name                   String
+  primaryEmail           String?
+  paymentTerms           Int?     // days
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  // Derived stats
+  totalOpenAmount        Float    @default(0)
+  totalOverdueAmount     Float    @default(0)
+  openInvoiceCount       Int      @default(0)
+  historicalAvgDaysToPay Float?
+  historicalLateRate     Float?   // 0-1
+  lastPaymentDate        DateTime?
+
+  // Flags
+  disputeFlagged         Boolean  @default(false)
+
+  // Relations
+  org           Org            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  invoices      Invoice[]
+  activities    Activity[]
+  emailThreads  EmailThread[]
+  promiseToPays PromiseToPay[]
+
+  @@index([orgId])
+  @@index([orgId, primaryEmail])
+  @@map("customers")
+}
+
+enum InvoiceStatus {
+  OPEN
+  PAID
+  PARTIAL
+  DISPUTED
+}
+
+enum AgingBucket {
+  CURRENT       // 0-30 days
+  DAYS_31_60    // 31-60 days
+  DAYS_61_90    // 61-90 days
+  OVER_90       // 90+ days
+}
+
+enum RiskTier {
+  URGENT        // 80-100
+  FOLLOW_UP     // 50-79
+  MONITOR       // <50
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  orgId          String
+  customerId     String
+  invoiceNumber  String
+  invoiceDate    DateTime
+  dueDate        DateTime
+  invoiceAmount  Float
+  openAmount     Float
+  status         InvoiceStatus @default(OPEN)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Computed fields
+  daysOverdue    Int           @default(0)
+  agingBucket    AgingBucket   @default(CURRENT)
+  priorityScore  Float         @default(0)
+  riskTier       RiskTier      @default(MONITOR)
+
+  // Flags
+  disputeFlagged Boolean       @default(false)
+
+  // Relations
+  org              Org               @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customer         Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  activities       Activity[]
+  promiseToPays    PromiseToPay[]
+  invoiceDocuments InvoiceDocument[]
+
+  @@unique([orgId, invoiceNumber])
+  @@index([orgId])
+  @@index([customerId])
+  @@index([orgId, priorityScore])
+  @@index([orgId, riskTier])
+  @@map("invoices")
+}
+
+// ============================================
+// UPLOADS & ACTIVITIES
+// ============================================
+
+enum UploadStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Upload {
+  id           String       @id @default(cuid())
+  orgId        String
+  fileName     String
+  status       UploadStatus @default(PENDING)
+  errorSummary String?
+  createdAt    DateTime     @default(now())
+
+  // Relations
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("uploads")
+}
+
+enum ActivityType {
+  EMAIL_SENT
+  EMAIL_RECEIVED
+  NOTE_ADDED
+  STATUS_CHANGED
+  PAYMENT_RECORDED
+  DISPUTE_FLAGGED
+  PROMISE_TO_PAY_RECORDED
+  INVOICE_UPLOADED
+}
+
+model Activity {
+  id         String       @id @default(cuid())
+  orgId      String
+  customerId String?
+  invoiceId  String?
+  type       ActivityType
+  metadata   Json?
+  createdAt  DateTime     @default(now())
+
+  // Relations
+  org      Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  invoice  Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([customerId])
+  @@index([invoiceId])
+  @@map("activities")
+}
+
+// ============================================
+// EMAIL SYSTEM
+// ============================================
+
+model EmailAccount {
+  id         String   @id @default(cuid())
+  orgId      String
+  fromEmail  String
+  fromName   String
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // SMTP config
+  smtpHost     String
+  smtpPort     Int
+  smtpUser     String
+  smtpPassword String
+
+  // IMAP config
+  imapHost     String
+  imapPort     Int
+  imapUser     String
+  imapPassword String
+
+  // Relations
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("email_accounts")
+}
+
+model EmailThread {
+  id            String   @id @default(cuid())
+  orgId         String
+  customerId    String?
+  subject       String
+  threadKey     String   // normalized subject + customer email for matching
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  // Relations
+  org      Org            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customer Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  messages EmailMessage[]
+
+  @@index([orgId])
+  @@index([customerId])
+  @@index([orgId, threadKey])
+  @@map("email_threads")
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageStatus {
+  DRAFT
+  SENT
+  ERROR
+}
+
+model EmailMessage {
+  id         String           @id @default(cuid())
+  orgId      String
+  threadId   String
+  direction  MessageDirection
+  status     MessageStatus    @default(DRAFT)
+  messageId  String?          // Email Message-ID header
+  inReplyTo  String?          // In-Reply-To header
+  from       String
+  to         String
+  cc         String?
+  subject    String
+  rawBody    String           @db.Text
+  textBody   String           @db.Text
+  receivedAt DateTime?
+  sentAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  // AI-related
+  intent           String? // request_invoice_copy, ask_due_date_or_amount, provide_promise_to_pay, dispute_or_issue, unclear_other
+  intentConfidence Float?
+
+  // Relations
+  org           Org            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  thread        EmailThread    @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  promiseToPays PromiseToPay[]
+
+  @@index([orgId])
+  @@index([threadId])
+  @@index([messageId])
+  @@map("email_messages")
+}
+
+model EmailTemplate {
+  id              String   @id @default(cuid())
+  orgId           String
+  key             String   // due_soon, past_due, final_notice
+  subjectTemplate String
+  bodyTemplate    String   @db.Text
+  tone            String   @default("polite")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, key])
+  @@index([orgId])
+  @@map("email_templates")
+}
+
+// ============================================
+// RULE ENGINE
+// ============================================
+
+model Strategy {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  enabled   Boolean  @default(true)
+  priority  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  org   Org            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  rules StrategyRule[]
+
+  @@index([orgId])
+  @@map("strategies")
+}
+
+model StrategyRule {
+  id             String   @id @default(cuid())
+  orgId          String
+  strategyId     String
+  conditionsJson Json     // Array of conditions
+  actionsJson    Json     // Array of actions
+  priority       Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  strategy Strategy @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([strategyId])
+  @@map("strategy_rules")
+}
+
+// ============================================
+// PROMISE TO PAY
+// ============================================
+
+enum PromiseToPayStatus {
+  ACTIVE
+  FULFILLED
+  BROKEN
+}
+
+model PromiseToPay {
+  id              String              @id @default(cuid())
+  orgId           String
+  customerId      String
+  invoiceId       String?
+  promisedDate    DateTime
+  promisedAmount  Float?
+  sourceMessageId String?
+  status          PromiseToPayStatus  @default(ACTIVE)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  // Relations
+  org           Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  invoice       Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  sourceMessage EmailMessage? @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
+
+  @@index([orgId])
+  @@index([customerId])
+  @@index([invoiceId])
+  @@index([orgId, status, promisedDate])
+  @@map("promise_to_pays")
+}
+
+// ============================================
+// INVOICE DOCUMENTS
+// ============================================
+
+model InvoiceDocument {
+  id               String   @id @default(cuid())
+  orgId            String
+  invoiceId        String
+  filePath         String
+  originalFileName String
+  mimeType         String
+  createdAt        DateTime @default(now())
+
+  // Relations
+  org     Org     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([invoiceId])
+  @@map("invoice_documents")
+}
