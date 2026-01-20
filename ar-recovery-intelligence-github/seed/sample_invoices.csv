@@ -1,7 +1,0 @@
-customer_name,customer_email,invoice_number,invoice_date,due_date,invoice_amount,open_amount,status,payment_terms,last_payment_date,historical_avg_days_to_pay,historical_late_rate
-Enterprise Solutions Inc,ap@enterprisesolutions.com,INV-2025-101,2025-10-15,2025-11-15,25000.00,25000.00,OPEN,30,2025-09-20,32,0.20
-Retail Giant Co,billing@retailgiant.com,INV-2025-102,2025-11-01,2025-12-01,18500.00,18500.00,OPEN,30,2025-10-15,28,0.15
-Manufacturing Pro LLC,finance@mfgpro.com,INV-2025-103,2025-09-01,2025-10-01,52000.00,52000.00,OPEN,30,2025-08-10,55,0.50
-Quick Response Services,accounts@quickresponse.com,INV-2025-104,2026-01-05,2026-02-05,7800.00,7800.00,OPEN,30,2025-12-20,15,0.05
-Tech Startup XYZ,ap@techxyz.com,INV-2025-105,2025-12-01,2026-01-01,15200.00,15200.00,OPEN,30,2025-11-05,38,0.30
-Global Logistics Ltd,billing@globallogistics.com,INV-2025-106,2025-10-20,2025-11-20,33000.00,33000.00,OPEN,30,2025-09-25,42,0.35

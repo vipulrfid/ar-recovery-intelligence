@@ -1,5 +1,0 @@
-customer_name,customer_email,invoice_number,invoice_date,due_date,invoice_amount,open_amount,status,payment_terms,last_payment_date,historical_avg_days_to_pay,historical_late_rate
-Acme Industries,ap@acmeindustries.com,INV-2026-001,2025-12-01,2026-01-01,12500.00,12500.00,OPEN,30,2025-11-15,28,0.10
-Beta Corp,billing@betacorp.com,INV-2026-002,2025-11-15,2025-12-15,8750.50,8750.50,OPEN,30,2025-10-20,35,0.25
-Gamma LLC,finance@gammallc.com,INV-2026-003,2025-10-01,2025-11-01,45000.00,45000.00,OPEN,30,2025-09-10,45,0.40
-Delta Services,accounts@deltaservices.com,INV-2026-004,2026-01-10,2026-02-10,6200.00,6200.00,OPEN,30,2025-12-28,18,0.05
